@@ -1,0 +1,5 @@
+To: <recepient_1@example.com>, <recepient_2@example.com>
+From: <sender@example.com>
+Subject: @hostname@: @topic@
+
+@body@

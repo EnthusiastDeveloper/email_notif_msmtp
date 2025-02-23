@@ -1,0 +1,70 @@
+#!/bin/bash
+
+## This script will replace the 3 placeholders in the email template file, preparing it to be used with msmtp.
+## required values are:
+## - hostname (or general Linux machine description)
+## - topic - for the subject of the email
+## - body
+## The user is required to provide at least the topic and body of the email
+
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 -t TOPIC -b BODY [-h HOSTNAME]"
+    echo "Replaces placeholders in email template with provided values"
+    echo
+    echo "Required arguments:"
+    echo "  -t TOPIC    Topic for email subject"
+    echo "  -b BODY     Body text for email"
+    echo
+    echo "Optional arguments:"
+    echo "  -h HOSTNAME Hostname or machine description (defaults to system hostname)"
+    return 1
+}
+
+# Initialize variables
+topic=""
+body=""
+hostname=$(hostname)  # Default to system hostname
+
+template_file="$(dirname "$0")/template.txt"
+
+# Parse command line arguments
+while getopts "h:t:b:d:" opt; do
+    case $opt in
+        h) hostname="$OPTARG" ;;
+        t) topic="$OPTARG" ;;
+        b) body="$OPTARG" ;;
+        ?) show_usage ;;
+    esac
+done
+
+# Check if required arguments are provided
+if [ -z "$topic" ] || [ -z "$body" ]; then
+    echo "[$0] Error: Topic (-t) and body (-b) are required"
+    show_usage
+fi
+
+# Check if template file exists
+if [ ! -f "$template_file" ]; then
+    echo "[$0] Error: Template file not found at $template_file"
+    return 1
+fi
+
+## Replacing the placeholders inside the template file is a workaround meant to handle egde case of sed failing to set the body for a multi-line string.
+# Create a temporary file for sed processing
+temp_file=$(mktemp)
+
+# First replace hostname and topic
+sed -e "s|@hostname@|$hostname|g" \
+    -e "s|@topic@|$topic|g" \
+    "$template_file" > "$temp_file"
+
+# Then replace the body using awk to handle multi-line content
+awk -v body="$body" '
+{
+    gsub(/@body@/, body)
+    print
+}' "$temp_file" | msmtp --file="$HOME/.msmtprc" --read-envelope-from --read-recipients
+
+# Clean up temporary file
+rm -f "$temp_file"
